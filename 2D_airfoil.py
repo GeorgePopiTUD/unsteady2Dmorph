@@ -1,10 +1,11 @@
-# Import
-
+# =============================================================================
+# Import libraries
+# =============================================================================
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io
 
-from unsteady2Dmorph.unsteady_2D import (
+from src.unsteady_2D import (
     geometry_airfoil,
     vpminf,
     lvminf,
@@ -12,98 +13,109 @@ from unsteady2Dmorph.unsteady_2D import (
     newtonVPM,
     compute_stagnation_phi,
 )
-import unsteady2Dmorph.utils
+import src.utils
 
+# =============================================================================
+# Define the inputs
+# =============================================================================
 
-# Define chord length and number of panels
-# MOVEMENT_TYPES = ["flapping"]
+# Flags
 MOVEMENT_TYPES = ["pitching"]
-# MOVEMENT_TYPES = ["pitching", "impulsive"]
-# MOVEMENT_TYPES = ["flapping", "pitching"]
-aero_model = "unsteady"  # two options: "steady", "quasi-steady" or "unsteady"
-wake_model = "free-wake"  # three options: "straight", "free-wake" or "prescribed"
-stagnation_phi_choice = "LE"
+# For MOVEMENT_TYPES, two options: "flapping" or "pitching"; can be combined in
+# a single list
+AERO_MODEL = "unsteady"  # two options: "steady", "quasi-steady" or "unsteady"
+WAKE_MODEL = "free-wake"  # three options: "straight", "free-wake" or "prescribed"
+STAGNATION_PHI_CHOICE = "LE"  # two options: "LE" or "TE"
+FORCES_TYPE = "combined"
+# for FORCES_TYPE, three options: "circulatory", "non-circulatory", "combined"
 
-# three options: "circulatory", "non-circulatory", "combined"
-forces_type = "combined"
+# Define the inflow conditions
+# Static angle of attack [rad] (only relevant if AERO_MODEL = "steady")
+alpha_static = 4.3 * np.pi / 180
+# Freestream velocity [m/s] in x-direction (approximately along streamwise)
+U_inf = 0.13 * 340.2941
+# Freestream velocity [m/s] in z-direction (approximately along normal)
+W_inf = 0
+rho = 1  # Density of working fluid [kg/m^3]
 
+# Geometrical characteristics of the airfoil
+c = 1  # Chord of the airfoil [m]
+# Name of the .dat airfoil where the airfoil coordinates are stored
+airfoil_name = "0012-coords"
 
-rho = 1
-c = 1  # m
+# Kinematics of the airfoil
+# Characteristics of the periodic motion
+N_cycles = 0.25  # Number of cycles
+dt_per_cycle = 40  # Number of time steps per cycle
+
+# Pitching (theta); only relevant if "pitching" in MOVEMENT_TYPES
+# x and z coordinates of the pitching axis
 x_theta = 1.0 / 3.0 * c
 z_theta = 0 * c
-x_beta = 0 * c
-z_beta = 0 * c
-
+# Amplitude / mean amplitude / phase (theta_0 / theta_mean / phi_theta) [rad]
 theta_0 = 1.0 * np.pi / 180
 theta_mean = 4.3 * np.pi / 180
 phi_theta = 0 * np.pi / 180
+# Reduced frequencies to be analyzed
+k_theta_array = np.array([0.01])
 
+# Flapping (beta); only relevant if "flapping" in MOVEMENT_TYPES
+# x and z coordinates of the flapping axis
+x_beta = 0 * c
+z_beta = 0 * c
+# Amplitude / mean amplitude / phase (beta_0 / beta_mean / phi_beta) [rad]
 beta_0 = 4 * np.pi / 180
 beta_mean = 0 * np.pi / 180
 phi_beta = 0 * np.pi / 180
+# Reduced frequencies to be analyzed
+k_beta_array = np.array([0.5])
 
-N_cycles = 0.25
-dt_per_cycle = 40
-
-# alpha_static_vals = np.linspace(-15, 15, 40) * np.pi / 180
-alpha_static = 4.3 * np.pi / 180
-beta_steady_values = np.array([0, 5, 10])
-
-# coefficient telling how close the newly shed vortex should be to the TE
+# Numerical settings of the model
+# Coefficient telling how close the newly shed vortex should be to the TE
 percentage = 0.25
-
 # Small real number for the numerical calculation of the Jacobian
 dx = 1e-6
 rel_change_NVPM = 1e-4
 max_N_iter_NVPM = 20
 
-# Free stream velocities
-U_inf = 0.13 * 340.2941  # m/s in x-direction
-W_inf = 0  # m/s in z-direction
+PLOT_COLORS_LIST = ["k.", "b.", "g.", "c."]
 
-# Define flapping frequency
-# k_beta_array = np.array([0.05, 0.1, 0.5])
-# k_beta_array = np.array([0.5])
-
-# Define Pitching Frequency
-# k_theta_array = np.array([0.5])
-k_theta_array = np.array([0.01])
-
-color = ["k.", "b.", "g.", "c."]
-
-# 2D airfoil entries
-airfoil_name = "0012-coords"
+# =============================================================================
+# Handle exceptions
+# =============================================================================
 
 flapping_bool = "flapping" in MOVEMENT_TYPES
 pitching_bool = "pitching" in MOVEMENT_TYPES
 impulsive_bool = "impulsive" in MOVEMENT_TYPES
 
-# Exceptions for the flag inputs
+# Make sure that the chosen aerodynamic model is supported
 
-if aero_model != "steady" and aero_model != "unsteady" and aero_model != "quasi-steady":
+if AERO_MODEL != "steady" and AERO_MODEL != "unsteady" and AERO_MODEL != "quasi-steady":
     raise ValueError(
-        'Invalid aero_model, only possibilities are "unsteady" or "quasi-steady" '
+        'Invalid AERO_MODEL, only possibilities are "unsteady" or "quasi-steady" '
     )
 
+# Make sure that the chosen wake model is supported
 if (
-    wake_model != "straight"
-    and wake_model != "free-wake"
-    and wake_model != "prescribed"
+    WAKE_MODEL != "straight"
+    and WAKE_MODEL != "free-wake"
+    and WAKE_MODEL != "prescribed"
 ):
     raise ValueError(
-        'Invalid wake_model, only possibilities are "straight", "free-wake" or "prescribed" '
+        'Invalid WAKE_MODEL, only possibilities are "straight", "free-wake" or "prescribed" '
     )
 
+# Make sure that the chosen force model is supported
 if (
-    forces_type != "circulatory"
-    and forces_type != "non-circulatory"
-    and forces_type != "combined"
+    FORCES_TYPE != "circulatory"
+    and FORCES_TYPE != "non-circulatory"
+    and FORCES_TYPE != "combined"
 ):
     raise ValueError(
-        'Invalid forces_type, only possibilities are "circulatory", "non-circulatory" or "combined" '
+        'Invalid FORCES_TYPE, only possibilities are "circulatory", "non-circulatory" or "combined" '
     )
 
+# Set assumed values for the model if rotation variables are not relevant
 if not pitching_bool:
     x_theta = 0
     theta_0 = 0
@@ -111,6 +123,8 @@ if not flapping_bool:
     x_beta = -1
     beta_0 = 0
 
+# Ensure that the same number of reduced frequencies is provided for both pitching
+# and flapping (necessary for the provided implementation)
 if pitching_bool and flapping_bool:
     if np.size(k_theta_array) != np.size(k_beta_array):
         raise ValueError("k_theta_array and k_beta_array must have the same size")
@@ -122,57 +136,48 @@ if x_beta > 0 and x_theta > x_beta:
     )
 
 
-# Solution
+# =============================================================================
+# Compute the solution
+# =============================================================================
 
-
-# Initialize geometry
+# Initialize geometry related variables and influence coefficient matrices
 (x_airfoil, z_airfoil, xc, zc, N, s, nx, nz, tx, tz) = geometry_airfoil(
     airfoil_name,
     np.array([0.8, 0]),
     x_pitch=x_theta,
     z_pitch=z_theta,
 )
-# Calculate linearly varying vortex influence coefficient matrices
 [Au, Av] = vpminf(xc, zc, xc, zc, tx, tz, nx, nz, s)
-
-# Calculate normal velocity influence coefficients
 coeff_matrix = Au * nx[:, np.newaxis] + Av * nz[:, np.newaxis]
-
-# Calculate tangential velocity influence coefficients
 Atau = Au * tx[:, np.newaxis] + Av * tz[:, np.newaxis]
 
-if aero_model == "steady":
-    # Read geometry and generate influence coefficients
-    (x_airfoil, z_airfoil, xc, zc, N, s, nx, nz, tx, tz) = geometry_airfoil(
-        airfoil_name, np.array([0.8, 0])
-    )
+# Once we have have the geometry and the influence coefficients, we can
+# calculate the right-hand side of the system of equations to obtain the solution;
+# this is dependent on the chosen aerodynamic model; this consists of computing
+# the influence of the singularities of the aerodynamic model, as well as
+# accounting for the Kutta condition
 
-    # Calculate tangential velocity influence coefficients
-    At = Au * tx[:, np.newaxis] + Av * tz[:, np.newaxis]
-
-    # Add Kutta condition
-    A_Kutta = np.zeros(N + 1)
-    A_Kutta = At[0, :] + At[-1, :]
-
-    coeff_matrix = np.vstack((coeff_matrix, A_Kutta))
-
-    # Assemble the RHS vector
+if AERO_MODEL == "steady":
+    # Assemble the RHS vector (without the Kutaa condition)
     RHS = -(U_inf * np.cos(alpha_static) * nx + U_inf * np.sin(alpha_static) * nz)
 
-    # add the Kutta condition to the RHS vector
+    # Add Kutta condition to the coefficient matrix
+    A_Kutta = np.zeros(N + 1)
+    A_Kutta = At[0, :] + At[-1, :]
+    coeff_matrix = np.vstack((coeff_matrix, A_Kutta))
+
+    # Add the Kutta condition to the RHS vector
     btau = U_inf * np.cos(alpha_static) * tx + U_inf * np.sin(alpha_static) * tz
     RHS = np.append(RHS, -btau[0] - btau[-1])
 
-    # solve the system of equations
+    # Solve the system of equations
     gamma = np.linalg.solve(coeff_matrix, RHS)
 
-    # Total tangent velocities on control poins
+    # Compute the pressure coefficient
     utang = np.dot(At, gamma) + btau
-
     C_p = 1 - utang**2 / U_inf**2
 
-    # Calculate the potential
-
+    # Plot the results
     plt.figure(1)
     plt.plot(xc, C_p)
     plt.show()
@@ -183,6 +188,7 @@ else:
         k_array = k_beta_array
 
     for q in range(len(k_array)):
+        # Set up reduced frequency, timestepping
         if pitching_bool:
             k_theta = k_theta_array[q]
             omega_theta = 2 * k_theta * U_inf / c  # rad/s
@@ -204,29 +210,30 @@ else:
             omega = omega_beta
             k = k_beta
 
-        # Set up time simulation parameters
         t_array = np.linspace(
             0,
             N_cycles * 2 * np.pi / omega,
             int(dt_per_cycle * N_cycles + 1),
         )
-        U_array = np.ones(t_array.size) * U_inf
-        W_array = np.ones(t_array.size) * W_inf
-
         dt = t_array[1] - t_array[0]
         N_timesteps = t_array.size
 
-        # Initialize wake
+        # Initialize the dynamic velocity arrays
+        U_array = np.ones(t_array.size) * U_inf
+        W_array = np.ones(t_array.size) * W_inf
+
+        # Initialize circulation and positions of the wake vortices
         gamma_w = np.zeros(N_timesteps)
-        # xw = np.zeros(N_timesteps) - x_theta
-        # zw = np.zeros(N_timesteps) - z_theta
         xw = np.zeros(N_timesteps)
         zw = np.zeros(N_timesteps)
         xw_array = np.zeros((N_timesteps, N_timesteps))
         zw_array = np.zeros((N_timesteps, N_timesteps))
+        # Initialize airfoil position
         x_airfoil_array = np.zeros((N + 1, N_timesteps))
         z_airfoil_array = np.zeros((N + 1, N_timesteps))
 
+        # Initialize values of the pitch angle and the pitch rate (theta_store
+        # and theta_dot_store)
         if impulsive_bool:
             theta_store = np.ones(N_timesteps) * theta_mean
         else:
@@ -237,12 +244,7 @@ else:
             theta_0 * omega_theta * np.cos(omega_theta * t_array + phi_theta)
         )
 
-        # Initialize wake panel
-        theta_wp_array = np.zeros(N_timesteps)
-
-        # Initialize potential
-
-        # Total initial bound vorticity
+        # Total bound circulation around the airfoil
         gamma_old = 0
 
         # Initialize wake-panel related quantitites
@@ -264,28 +266,29 @@ else:
         u_m = np.zeros((N, N_timesteps))
         w_m = np.zeros((N, N_timesteps))
 
-        # Initialize matrices to store velocities induced by the wake vortices on
-        # the control points
+        # Initialize matrices to store velocities induced by the wake vortices
+        # on the control points
         u_w = np.zeros((N, N_timesteps))
         w_w = np.zeros((N, N_timesteps))
 
+        # Previous values of the potential at the previous timestep
         phi_c_old = np.zeros(N)
+
         lift_array = np.zeros(N_timesteps)
         drag_array = np.zeros(N_timesteps)
         C_p_array = np.zeros((N, N_timesteps))
 
         for i, t in enumerate(t_array):
-            # Define freestream velocities
+            # First, compute the known geometry and pitch movement
+            # characteristics for the current timestep
             U_inf_t = U_array[i]
             W_inf_t = W_array[i]
 
             Q_inf_t = np.sqrt(U_inf_t**2 + W_inf_t**2)
 
-            # Define pitch angle and its derivative
             theta = theta_store[i]
             theta_dot = theta_dot_store[i]
 
-            # Compute the geometry of the airfoil
             (
                 x_airfoil,
                 z_airfoil,
@@ -304,63 +307,61 @@ else:
                 x_pitch=x_theta,
                 z_pitch=z_theta,
             )
+
+            # Add the effect of the airfoil motion to the right-hand side of
+            # the impermeability condition
             if impulsive_bool:
                 b_vec = -(U_inf_t * nx + W_inf_t * nz)
                 b_tau = U_inf_t * tx
             else:
-                # Calculate motion-induced effects
                 u_m[:, i] = U_inf_t - theta_dot * zc
                 w_m[:, i] = theta_dot * xc
-                # Calculate right-hand side of impermeability condition
-                # (motion-induced velocity normal to the airfoil panels)
+
                 b_vec = -u_m[:, i] * nx - w_m[:, i] * nz
                 b_tau = u_m[:, i] * tx + w_m[:, i] * tz
 
+            # Add the effect of the shed vorticity to the right-hand side of the
+            # impermeability condition
             if i > 0:
+                # Convect the wake vortices away from the airfoil (use velocities
+                # computed at previous time step)
                 if i > 1:
-                    # Propagate point wake strength
                     gamma_w[1 : i + 1] = gamma_w[0:i]
-
-                    # Propagate wake vortex positions
-                    # (use velocities computed at previous time step)
                     U_inf_t_m1 = U_array[i - 1]
                     W_inf_t_m1 = W_array[i - 1]
                     xw[1 : i + 1] = xw[0:i] + (U_inf_t_m1 + u_w_prop) * dt
                     zw[1 : i + 1] = zw[0:i] + (W_inf_t_m1 + w_w_prop) * dt
 
-                # Compute the strengh of the wake panel
+                # Include the effect of the wake panel (for this, we need to
+                # compute the midpoints of the wake panel and the circulation;
+                # once this is done, we compute the influence over each bound
+                # panel's node)
                 gamma_w[0] = gamma_wp * l_wp
-
-                # Position of first wake vortex
-                if wake_model == "straight":
+                if WAKE_MODEL == "straight":
                     xw[0] = (c - x_theta) + 0.5 * l_wp
                     zw[0] = 0
-                elif wake_model == "prescribed":
+                elif WAKE_MODEL == "prescribed":
                     xw[0] = xc_wp + U_inf_t * dt
                     zw[0] = zc_wp + W_inf_t * dt
-                elif wake_model == "free-wake":
+                elif WAKE_MODEL == "free-wake":
                     xw[0] = xc_wp + u_wp[0] * dt
                     zw[0] = zc_wp + w_wp[0] * dt
 
-                # Calculate influence of point wake vortices on airfoil control
-                # points
                 B_u, B_v = lvminf(xc, zc, xw[0:i], zw[0:i])
-                # Calculate velocities induced by point wake vortices on
-                # airfoil control points
                 u_w[:, i] = np.dot(B_u, gamma_w[0:i])
                 w_w[:, i] = np.dot(B_v, gamma_w[0:i])
 
-            # Calculate normal velocities induced by point wake vortices on
-            # airfoil control points
+            # Determine the normal and tangential components of wake-induced
+            # velocities
             v_nw = u_w[:, i] * nx + w_w[:, i] * nz
-            # Calculate tangential velocities induced by point wake vortices
             u_tauw = u_w[:, i] * tx + w_w[:, i] * tz
 
-            # Start iterations for wake panel
-            wake_iter = 1  # Wake iteration condition: 0 stop, 1 continue
-            n_iter = 0  # Number of iterations
+            # Based on the velocities induced by the motion and the wake, iterate
+            # for the wake panel length, angle, and circulation
+            wake_iter = 1
+            n_iter_wp = 0
 
-            # build dictionary for the newtonVPM function
+            # Build dictionary for the newtonVPM function
             newtonVPM_dict = {
                 "lwp": l_wp,
                 "thetawp": theta_wp,
@@ -391,14 +392,14 @@ else:
             }
 
             while wake_iter == 1:
-                n_iter += 1
+                n_iter_wp += 1
+
                 # Calculate the objective function associated with the
                 # Newton-Raphson search method
                 output_NVPM = newtonVPM(newtonVPM_dict)
-
                 Fsv = output_NVPM["Fsv"]
 
-                # Calculate numerically the Jacobian
+                # Calculatethe Jacobian
                 Jac = np.zeros((2, 2))
 
                 # Derivatives with respect to lwp
@@ -425,7 +426,7 @@ else:
                 # Calculate convergence criterion
                 crit = np.sqrt(delta_x[0] ** 2 + delta_x[1] ** 2)
 
-                # Assign new values to the wake panel and length
+                # Assign updated values to the wake panel and length
                 l_wp += delta_x[0][0]
                 newtonVPM_dict["lwp"] = l_wp
 
@@ -435,7 +436,7 @@ else:
                 # Test for convergence
                 if crit < rel_change_NVPM:
                     wake_iter = 0
-                if n_iter > max_N_iter_NVPM:
+                if n_iter_wp > max_N_iter_NVPM:
                     print("exceeded maximum number of iterations for Newton-Raphson")
                     l_wp = l_wp_array[i - 1]
                     theta_wp = theta_wp_array[i - 1]
@@ -458,28 +459,25 @@ else:
             w_wp = last_iteration_output_NVPM["wwp"]
             u_tan_bound = last_iteration_output_NVPM["utang"]
 
-            # Store angle of wake panel
+            # Store converged angle and length of wake panel
             theta_wp_array[i] = theta_wp
-            # Store length of wake panel
             l_wp_array[i] = l_wp
 
             # Calculate value of total bound circulation
             s_bar = (np.concatenate([[0], s]) + np.concatenate([s, [0]])) / 2
             gamma_old = np.sum(gamma_bound * s_bar)
 
-            # Calculate wake propagation velocities
+            # Calculate effect of wake panel on the shed vorticity
             u_w_prop = np.zeros(i + 1)
             w_w_prop = np.zeros(i + 1)
             if i > 0:
-                if wake_model == "free-wake":
-                    # Influence of airfoil panels on point wake vortices
+                if WAKE_MODEL == "free-wake":
                     Au_w, Aw_w = vpminf(
                         xw[0 : i + 1], zw[0 : i + 1], xc, zc, tx, tz, nx, nz, s
                     )
                     u_w_prop += np.dot(Au_w, gamma_bound)
                     w_w_prop += np.dot(Aw_w, gamma_bound)
 
-                    # Influence of wake panel on point wake vortices
                     Au_wp, Aw_wp = svpminf(
                         xw[0 : i + 1],
                         zw[0 : i + 1],
@@ -497,7 +495,6 @@ else:
                     u_w_prop += Au_wp * gamma_wp
                     w_w_prop += Aw_wp * gamma_wp
 
-                    # Influence of point wake vortices on point wake vortices
                     B_uw, B_wv = lvminf(
                         xw[0 : i + 1], zw[0 : i + 1], xw[0 : i + 1], zw[0 : i + 1]
                     )
@@ -505,17 +502,16 @@ else:
                     u_w_prop += np.dot(B_uw, gamma_w[0 : i + 1])
                     w_w_prop += np.dot(B_wv, gamma_w[0 : i + 1])
 
-            # Calculation of perturbation potential
-            # Calculate potential at leading edge
-            # Set up grid upstream of the airfoil in the direction of the
-            # freestream
+            # Calculation of perturbation potential; first, calculate potential
+            # at leading edge by settings up grid upstream of the airfoil in
+            # the direction of the freestream
             N_chords = 10
             index_panel_stagnation, phi_LE = compute_stagnation_phi(
                 x_airfoil,
                 z_airfoil,
                 s,
-                stagnation_phi_choice,
-                aero_model,
+                STAGNATION_PHI_CHOICE,
+                AERO_MODEL,
                 N_chords,
                 xc,
                 zc,
@@ -575,27 +571,13 @@ else:
                 - ((b_tau + u_tan_bound) ** 2) / (Q_inf_t**2)
                 - 2 / Q_inf_t**2 * d_phic_dt
             )
-
-            lift_array[i] = -0.5 * rho * U_inf_t**2 * np.sum(C_p * s * nz)
-            drag_array[i] = -0.5 * rho * U_inf_t**2 * np.sum(C_p * s * nx)
-
-            # Write data for vizualization
             C_p_array[:, i] = C_p
             xw_array[:, i] = xw
             zw_array[:, i] = zw
             x_airfoil_array[:, i] = x_airfoil
             z_airfoil_array[:, i] = z_airfoil
-            # plt.figure(2)
-            # plt.clf()
-            # # plt.xlim(-30, 2)
-            # # plt.ylim(-2, 2)
-            # plt.plot(xc + x_theta, C_p_array[:, i], "k")
-            # plt.grid()
-            # plt.xlabel(r"X")
-            # plt.ylabel(r"$C_p$")
-            # plt.show()
-            # # plt.pause(0.1)
-            # break
+            lift_array[i] = -0.5 * rho * U_inf_t**2 * np.sum(C_p * s * nz)
+            drag_array[i] = -0.5 * rho * U_inf_t**2 * np.sum(C_p * s * nx)
 
 for i in range(N_timesteps):
     plt.figure(3)
