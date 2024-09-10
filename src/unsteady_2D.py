@@ -112,7 +112,30 @@ def geometry_airfoil(
     airfoil_name, flap_position, theta=0, x_pitch=0, z_pitch=0, skiprows=0
 ):
     """
-    asd
+    Function to generate the geometry of an airfoil using the NACA four-digit
+    series. The airfoil is discretized into a number of panels, and the
+    coordinates of the panel nodes, control points, and panel angles are
+    calculated.
+
+    Inputs:
+    - airfoil_name: name of the airfoil file
+    - flap_position: position of the flap hinge
+    - theta: angle of rotation of the airfoil [rad]
+    - x_pitch: x-coordinate of the pitching axis
+    - z_pitch: z-coordinate of the pitching axis
+    - skiprows: number of rows to skip in the airfoil file
+
+    Outputs:
+    - x_int: x-coordinates of the panel nodes
+    - z_int: z-coordinates of the panel nodes
+    - xc: x-coordinates of the panel control points
+    - zc: z-coordinates of the panel control points
+    - numPan: number of panels
+    - s: panel lengths
+    - nx: x-components of the panel normal vectors
+    - nz: z-components of the panel normal vectors
+    - tx: x-components of the panel tangent vectors
+    - tz: z-components of the panel tangent vectors
     """
 
     # Define the NACA reference number and number of panels
