@@ -130,4 +130,4 @@ dmypy.json
 
 # Github environment folder
 .github/
-./2D_airfoil.py
+2D_airfoil.py
