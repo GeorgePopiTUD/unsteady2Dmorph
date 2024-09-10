@@ -139,8 +139,8 @@ def geometry_airfoil(
     """
 
     # Define the NACA reference number and number of panels
-    mpt = "2412"  # NACA reference number
-    n = 100  # Number of panels, must be even
+    mpt = "0012"  # NACA reference number
+    n = 400  # Number of panels, must be even
 
     # Set non-dimensional x-coordinates of the airfoil
     x_int = 0.5 * (
