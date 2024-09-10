@@ -129,5 +129,5 @@ dmypy.json
 .pyre/
 
 # Github environment folder
-.git*/
-2D_airfoil.py
+.github/
+./2D_airfoil.py
