@@ -38,7 +38,7 @@ The workflow was only tested on Windows 10.
 1. For results' reproducibility, install the recommended python libraries:
 
     ```pip install -r config/requirements.txt```
-2. Test the separate functioning of the 2D panel code by running ```2D_airfoil.py```
+2. Test the separate functioning of the 2D panel code by running ```2D_airfoil.py```; you should obtain an animation in ```results/figures``` that is exactly the same as the reference one being provided
 
 ## Contribute
 __TO DO__

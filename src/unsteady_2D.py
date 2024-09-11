@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from .shared.utils import Read_Two_Column_File, flip_panels
 
 
 def geometry(N, c, x_pitch, beta=0, x_flap=0):
@@ -109,7 +110,14 @@ def geometry(N, c, x_pitch, beta=0, x_flap=0):
 
 
 def geometry_airfoil(
-    airfoil_name, flap_position, theta=0, x_pitch=0, z_pitch=0, skiprows=0
+    airfoil_name,
+    airfoil_type,
+    flap_position,
+    desired_chord=1,
+    theta=0,
+    x_pitch=0,
+    z_pitch=0,
+    skiprows=0,
 ):
     """
     Function to generate the geometry of an airfoil using the NACA four-digit
@@ -137,29 +145,37 @@ def geometry_airfoil(
     - tx: x-components of the panel tangent vectors
     - tz: z-components of the panel tangent vectors
     """
+    if airfoil_type == "naca":
+        # Define the NACA reference number and number of panels
+        mpt = "0012"  # NACA reference number
+        n = 400  # Number of panels, must be even
 
-    # Define the NACA reference number and number of panels
-    mpt = "0012"  # NACA reference number
-    n = 400  # Number of panels, must be even
+        # Set non-dimensional x-coordinates of the airfoil
+        x_int = 0.5 * (
+            1 - np.cos(np.linspace(-np.pi, np.pi, n + 1))
+        )  # Nonlinear distribution
 
-    # Set non-dimensional x-coordinates of the airfoil
-    x_int = 0.5 * (
-        1 - np.cos(np.linspace(-np.pi, np.pi, n + 1))
-    )  # Nonlinear distribution
+        # Calculate non-dimensional y-coordinates of the airfoil
+        z_int = nacafourdigit(x_int, int(n / 2), mpt, 1)
+    else:
+        x_int, z_int = Read_Two_Column_File(airfoil_name, skiprows)
 
-    # Calculate non-dimensional y-coordinates of the airfoil
-    z_int = nacafourdigit(x_int, int(n / 2), mpt, 1)
+    # Flip the panels if needed
+    (x_int, z_int) = flip_panels(x_int, z_int, "CW")
 
-    # x_int, z_int = Read_Two_Column_File(airfoil_name, skiprows)
+    # Smoothen the airfoil
+    # TO DO
 
-    # flip the panels if needed
-    # (x_int, z_int) = flip_panels(x_int, z_int)
+    # Scale the airfoil according to the desired chord
+    original_chord = np.amax(x_int) - np.amin(x_int)
+    x_int *= desired_chord / original_chord
+    z_int *= desired_chord / original_chord
 
     # Shift the reference system to the pitching axis
     x_int -= x_pitch
     z_int -= z_pitch
 
-    # if using a flap, make sure that a panel node is at the hinge position
+    # If using a flap, make sure that a panel node is at the hinge position
     # (to avoid errors in the geometry of the flap)
     x_flap = flap_position[0]
 
@@ -170,8 +186,6 @@ def geometry_airfoil(
 
     x_int = xzrot[0, :]
     z_int = xzrot[1, :]
-    x_int_before = np.copy(x_int)
-    z_int_before = np.copy(z_int)
 
     # Calculate panel angles
     theta = np.arctan2(z_int[1:] - z_int[:-1], x_int[1:] - x_int[:-1])
@@ -179,9 +193,6 @@ def geometry_airfoil(
     # Calculate control points
     xc = x_int[:-1] + (x_int[1:] - x_int[:-1]) / 2
     zc = z_int[:-1] + (z_int[1:] - z_int[:-1]) / 2
-
-    x_int_before = np.copy(x_int)
-    z_int_before = np.copy(z_int)
 
     # if x_flap >= 0:
     #     x_flap -= x_pitch
@@ -279,29 +290,12 @@ def geometry_airfoil(
     xc = x_int[:-1] + (x_int[1:] - x_int[:-1]) / 2
     zc = z_int[:-1] + (z_int[1:] - z_int[:-1]) / 2
 
-    # Calculate panel lengths
+    # Calculate panel lengths, tangent and normal vectors
     s = np.sqrt((x_int[1:] - x_int[:-1]) ** 2 + (z_int[1:] - z_int[:-1]) ** 2)
-    # Calculate tangent vectors
     tx = (x_int[1:] - x_int[:-1]) / s
     tz = (z_int[1:] - z_int[:-1]) / s
-    # Calculate normal vectors
     nx = -tz
     nz = tx
-
-    # # Calculate linearly varying vortex influence coefficient matrices
-    # [Au, Av] = vpminf(xc, zc, xc, zc, tx, tz, nx, nz, s)
-
-    # # Calculate normal velocity influence coefficients
-    # An = Au * nx[:, np.newaxis] + Av * nz[:, np.newaxis]
-
-    # # Calculate tangential velocity influence coefficients
-    # At = Au * tx[:, np.newaxis] + Av * tz[:, np.newaxis]
-
-    # # Add Kutta condition
-    # A_Kutta = np.zeros(numPan + 1)
-    # A_Kutta = At[0, :] + At[-1, :]
-
-    # coeff_matrix = np.vstack((An, A_Kutta))
 
     return (x_int, z_int, xc, zc, numPan, s, nx, nz, tx, tz)
 
