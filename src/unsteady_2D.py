@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from .shared.utils import Read_Two_Column_File, flip_panels
+from .shared.utils import Read_Two_Column_File, flip_panels, rotate_points_airfoil
 
 
 def geometry(N, c, x_pitch, beta=0, x_flap=0):
@@ -113,8 +113,9 @@ def geometry_airfoil(
     airfoil_name,
     airfoil_type,
     flap_position,
+    beta_input=0,
     desired_chord=1,
-    theta=0,
+    theta_input=0,
     x_pitch=0,
     z_pitch=0,
     skiprows=0,
@@ -128,7 +129,7 @@ def geometry_airfoil(
     Inputs:
     - airfoil_name: name of the airfoil file
     - flap_position: position of the flap hinge
-    - theta: angle of rotation of the airfoil [rad]
+    - theta_input: angle of rotation of the airfoil [rad]
     - x_pitch: x-coordinate of the pitching axis
     - z_pitch: z-coordinate of the pitching axis
     - skiprows: number of rows to skip in the airfoil file
@@ -174,115 +175,31 @@ def geometry_airfoil(
     # Shift the reference system to the pitching axis
     x_int -= x_pitch
     z_int -= z_pitch
+    flap_position -= np.array([x_pitch, z_pitch])
 
-    # If using a flap, make sure that a panel node is at the hinge position
-    # (to avoid errors in the geometry of the flap)
-    x_flap = flap_position[0]
+    # Identify panel nodes that need to be rotated
+    x_hinge = flap_position[0]
+    z_hinge = flap_position[1]
+    indexes_flap = np.where(x_int >= x_hinge)
 
+    # Rotate points according to the flap angle
+    x_int, z_int = rotate_points_airfoil(
+        x_int, z_int, x_hinge, z_hinge, beta_input, indexes_flap
+    )
+
+    # Rotate the airfoil according to the current angle of attack
     R_theta = np.array(
-        [[np.cos(theta), np.sin(theta)], [-np.sin(theta), np.cos(theta)]]
+        [
+            [np.cos(theta_input), np.sin(theta_input)],
+            [-np.sin(theta_input), np.cos(theta_input)],
+        ]
     )
     xzrot = np.dot(R_theta, np.array([x_int, z_int]))
 
     x_int = xzrot[0, :]
     z_int = xzrot[1, :]
 
-    # Calculate panel angles
-    theta = np.arctan2(z_int[1:] - z_int[:-1], x_int[1:] - x_int[:-1])
-
-    # Calculate control points
-    xc = x_int[:-1] + (x_int[1:] - x_int[:-1]) / 2
-    zc = z_int[:-1] + (z_int[1:] - z_int[:-1]) / 2
-
-    # if x_flap >= 0:
-    #     x_flap -= x_pitch
-    #     x_upper = x_int[z_int >= 0]
-    #     x_lower = x_int[z_int < 0]
-    #     z_upper = z_int[z_int >= 0]
-    #     z_lower = z_int[z_int < 0]
-    #     theta_upper = theta[zc >= 0]
-    #     theta_lower = theta[zc < 0]
-    #     args_not_flap_int_upper = np.where(x_upper < x_flap)
-    #     args_not_flap_int_lower = np.where(x_lower < x_flap)
-    #     if args_not_flap_int_upper[0].size > 0:
-    #         args_closest_left_int_upper = args_not_flap_int_upper[0][-1]
-    #         point_upper_left = np.array(
-    #             [
-    #                 x_upper[args_closest_left_int_upper],
-    #                 z_upper[args_closest_left_int_upper],
-    #             ]
-    #         )
-    #         point_upper_right = np.array(
-    #             [
-    #                 x_upper[args_closest_left_int_upper + 1],
-    #                 z_upper[args_closest_left_int_upper + 1],
-    #             ]
-    #         )
-    #         if np.linalg.norm(
-    #             point_upper_left - flap_position
-    #             < np.linalg.norm(point_upper_right - flap_position)
-    #         ):
-    #             index_closest_upper = args_closest_left_int_upper
-    #         else:
-    #             print("goes where it should upper")
-    #             index_closest_upper = args_closest_left_int_upper + 1
-    #         x_upper[index_closest_upper] = x_flap
-    #         z_upper[index_closest_upper] = z_upper[index_closest_upper - 1] + np.abs(
-    #             x_flap - x_upper[index_closest_upper - 1]
-    #         ) * np.tan(theta_upper[index_closest_upper - 1])
-
-    #     if args_not_flap_int_lower[0].size > 0:
-    #         args_closest_left_int_lower = args_not_flap_int_lower[0][0]
-    #         point_lower_left = np.array(
-    #             [
-    #                 x_lower[args_closest_left_int_lower],
-    #                 z_lower[args_closest_left_int_lower],
-    #             ]
-    #         )
-    #         point_lower_right = np.array(
-    #             [
-    #                 x_lower[args_closest_left_int_lower - 1],
-    #                 z_lower[args_closest_left_int_lower - 1],
-    #             ]
-    #         )
-    #         if np.linalg.norm(point_lower_left - flap_position) < np.linalg.norm(
-    #             point_lower_right - flap_position
-    #         ):
-    #             index_closest_lower = args_closest_left_int_lower
-    #         else:
-    #             print("goes where it should lower")
-    #             index_closest_lower = args_closest_left_int_lower - 1
-    #         x_lower[index_closest_lower] = x_flap
-    #         z_lower[index_closest_lower] = z_lower[index_closest_lower - 1] + (
-    #             x_flap - x_lower[index_closest_lower - 1]
-    #         ) * np.tan(theta_lower[index_closest_lower - 1])
-    #         print(
-    #             "addition to lower:",
-    #             np.abs(x_flap - x_lower[index_closest_lower - 1])
-    #             * np.tan(theta_lower[index_closest_lower - 1]),
-    #         )
-    #     x_int = np.concatenate([x_lower, x_upper])
-    #     z_int = np.concatenate([z_lower, z_upper])
-
-    #     plt.figure(1)
-    #     plt.plot(x_flap, flap_position[1], "o", label="hinge")
-    #     plt.axvline(x=x_flap, color="b", label="axvline - full height")
-    #     plt.plot(x_int_before, z_int_before, "*", label="before")
-    #     # plt.plot(x_int, z_int, "*", label="after")
-    #     # plt.plot(x_lower, z_lower, "o", label="lower")
-    #     # plt.plot(point_lower_left[0], point_lower_left[1], "o", label="lower left")
-    #     # plt.plot(point_lower_right[0], point_lower_right[1], "o", label="lower right")
-    #     # plt.plot(point_upper_left[0], point_upper_left[1], "o", label="upper left")
-    #     # plt.plot(point_upper_right[0], point_upper_right[1], "o", label="upper right")
-    #     # plt.plot(
-    #     #     x_int_before[index_closest_lower],
-    #     #     z_int_before[index_closest_lower],
-    #     #     "o",
-    #     #     label="chosen lower",
-    #     # )
-    #     # plt.plot(x_int, z_int, "*", label="after")
-    #     plt.legend()
-    #     plt.show()
+    flap_position = np.dot(R_theta, flap_position)
 
     numPan = len(x_int) - 1  # Number of panels
 
@@ -297,7 +214,22 @@ def geometry_airfoil(
     nx = -tz
     nz = tx
 
-    return (x_int, z_int, xc, zc, numPan, s, nx, nz, tx, tz)
+    indexes_flap_c = np.where(xc > x_hinge)
+
+    return (
+        x_int,
+        z_int,
+        xc,
+        zc,
+        numPan,
+        s,
+        nx,
+        nz,
+        tx,
+        tz,
+        indexes_flap_c,
+        flap_position,
+    )
 
 
 def compute_static_polar_alpha_sweep(N, c, x_theta, alpha_vals, Uinf, beta=0, x_beta=0):
@@ -373,8 +305,6 @@ def newtonVPM(newtonVPM_dict):
     Parameters are based on the MATLAB function. Outputs are:
     Fsv, xwp, ywp, xcwp, ycwp, nxwp, nywp, tauxwp, tauywp, gammawp, gamma, uwp, wwp, utang
     """
-
-    # Read the data from the dictionary
     lwp = newtonVPM_dict["lwp"]
     thetawp = newtonVPM_dict["thetawp"]
     x = newtonVPM_dict["x"]
@@ -998,7 +928,7 @@ def svpminf(xci, zci, xcj, zcj, tauxj, tauzj, nxj, nzj, sj):
     return Augamma, Avgamma
 
 
-def vpminf(xci, zci, xcj, zcj, tauxj, tauzj, nxj, nzj, sj):
+def vpminf(xci, zci, xcj, zcj, tauxj, tauzj, nxj, nzj, sj, epsilon=1e-10):
     """
     Influence coefficient matrices for the vortex panel method with linearly
     varying strength. Calculates the horizontal and vertical velocity influence
@@ -1015,6 +945,8 @@ def vpminf(xci, zci, xcj, zcj, tauxj, tauzj, nxj, nzj, sj):
         Unit normal vectors of influencing panels.
     sj : array-like
         Lengths of influencing panels.
+    epsilon : float, optional
+        Small number to avoid division by zero.
 
     Returns:
     Au : ndarray
@@ -1027,6 +959,7 @@ def vpminf(xci, zci, xcj, zcj, tauxj, tauzj, nxj, nzj, sj):
     Vortex Methods, G. Dimitriadis, Wiley, 2023. If any part of the code is
     reused, the author and book must be acknowledged.
     """
+
     # Transform the influenced coordinates to arrays (useful if only one panel
     # is influenced)
     if isinstance(xci, (np.floating, float)):
@@ -1069,10 +1002,9 @@ def vpminf(xci, zci, xcj, zcj, tauxj, tauzj, nxj, nzj, sj):
                 )
                 # Logarithmic term
                 logterm = np.log(
-                    ((xtau - sj[j] / 2) ** 2 + zn**2)
-                    / ((xtau + sj[j] / 2) ** 2 + zn**2)
+                    ((xtau - sj[j] / 2) ** 2 + zn**2 + epsilon)
+                    / ((xtau + sj[j] / 2) ** 2 + zn**2 + epsilon)
                 )
-
             # Calculate velocities at point i in a direction tangent to panel j (equation 4.189)
             utau1 = (
                 1

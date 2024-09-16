@@ -130,3 +130,19 @@ def smoothen_airfoil(x_int, z_int):
     z_high_res = interp_z(s1)
 
     return x_high_res, z_high_res
+
+
+def rotate_points_airfoil(x_vals, z_vals, x_hinge, z_hinge, beta, args_flap):
+    rot_matrix = np.array(
+        [[np.cos(-beta), -np.sin(-beta)], [np.sin(-beta), np.cos(-beta)]]
+    )
+    x_vals_rot = x_vals[args_flap] - x_hinge
+    z_vals_rot = z_vals[args_flap] - z_hinge
+    x_new, z_new = np.dot(rot_matrix, np.array([x_vals_rot, z_vals_rot]))
+    x_new += x_hinge
+    z_new += z_hinge
+    x_vals_new = np.copy(x_vals)
+    z_vals_new = np.copy(z_vals)
+    x_vals_new[args_flap] = x_new
+    z_vals_new[args_flap] = z_new
+    return x_vals_new, z_vals_new

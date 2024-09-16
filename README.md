@@ -20,9 +20,11 @@ Dimitriadis, G. Unsteady aerodynamics: Potential and vortex methods. <em> Wiley,
     <p align="center">
     Lane, K., & Marshall, D. (2010). Inverse airfoil design utilizing CST parameterization. In <em> 48th AIAA Aerospace Sciences Meeting Including the New Horizons Forum and Aerospace Exposition, 2010</em>. <a href="https://doi.org/10.2514/6.2010-1228">Article link</a>
     </p>
-    
+## Assumptions
+1. The airfoil coordinates of the flap are those downstream of the hinge point
+
 ## Prerequisites
-The workflow was only tested on Windows 10.
+**The results were obtained using python 3.11.9**. The workflow was only tested on Windows 10.
 
 ## Folder Structure 
 ```
