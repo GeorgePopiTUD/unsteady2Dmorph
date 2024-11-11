@@ -131,3 +131,4 @@ dmypy.json
 # Github environment folder
 .github/
 2D_airfoil.py
+examples/2D_airfoil_static.ipynb
