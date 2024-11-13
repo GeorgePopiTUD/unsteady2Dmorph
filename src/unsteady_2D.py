@@ -1525,20 +1525,21 @@ def compute_aerodynamics_unsteady(aero_input_list):
             phi_airfoil = np.zeros(N + 1)
 
             # Lower surface
-            for j in range(index_panel_stagnation):
-                phi_airfoil[j + 1] = phi_LE - np.sum(
-                    u_tan_bound[index_panel_stagnation:j:-1]
-                    * s[index_panel_stagnation:j:-1]
-                )
+            phi_airfoil[1 : index_panel_stagnation + 1] = (
+                phi_LE
+                - np.cumsum(
+                    u_tan_bound[index_panel_stagnation:0:-1]
+                    * s[index_panel_stagnation:0:-1]
+                )[::-1]
+            )
             phi_airfoil[0] = phi_LE - np.sum(
                 u_tan_bound[index_panel_stagnation::-1] * s[index_panel_stagnation::-1]
             )
             # Upper surface
-            for j in range(index_panel_stagnation + 2, N + 1):
-                phi_airfoil[j] = phi_LE + np.sum(
-                    u_tan_bound[index_panel_stagnation + 1 : j]
-                    * s[index_panel_stagnation + 1 : j]
-                )
+            phi_airfoil[index_panel_stagnation + 2 :] = phi_LE + np.cumsum(
+                u_tan_bound[index_panel_stagnation + 1 :]
+                * s[index_panel_stagnation + 1 :]
+            )
             # Stagnation point
             phi_airfoil[index_panel_stagnation + 1] = phi_LE
 

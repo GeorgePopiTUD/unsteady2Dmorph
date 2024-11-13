@@ -131,4 +131,6 @@ dmypy.json
 # Github environment folder
 .github/
 2D_airfoil.py
+flapping_amplitude.py
 examples/2D_airfoil_static.ipynb
+examples_local/*.py
