@@ -134,3 +134,4 @@ dmypy.json
 flapping_amplitude.py
 examples/2D_airfoil_static.ipynb
 examples_local/*.py
+flapping_amplitude_change.py
